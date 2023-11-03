@@ -1,6 +1,6 @@
 {
   "name": "@chromatic-protocol/graphql-request",
-  "version": "0.0.1",
+  "version": "0.0.1-rc.1",
   "type": "module",
   "exports": {
     ".": {
