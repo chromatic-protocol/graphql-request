@@ -9,8 +9,8 @@ const CONNECTION_INIT = `connection_init`
 const CONNECTION_ACK = `connection_ack`
 const PING = `ping`
 const PONG = `pong`
-const SUBSCRIBE = `subscribe`
-const NEXT = `next`
+const START = `start`
+const DATA = `data`;
 const ERROR = `error`
 const COMPLETE = `complete`
 
@@ -86,7 +86,7 @@ type SocketState = {
 }
 
 export class GraphQLWebSocketClient {
-  static PROTOCOL = `graphql-transport-ws`
+  static PROTOCOL = `graphql-ws`
 
   private socket: WebSocket
   private socketState: SocketState = { acknowledged: false, lastRequestId: 0, subscriptions: {} }
@@ -145,7 +145,7 @@ export class GraphQLWebSocketClient {
         const { query, variables, subscriber } = this.socketState.subscriptions[message.id]!
 
         switch (message.type) {
-          case NEXT: {
+          case DATA: {
             if (!message.payload.errors && message.payload.data) {
               subscriber.next && subscriber.next(message.payload.data)
             }
@@ -276,7 +276,7 @@ function Pong(payload: any) {
 }
 
 function Subscribe(id: string, payload: SubscribePayload) {
-  return new GraphQLWebSocketMessage(SUBSCRIBE, payload, id)
+  return new GraphQLWebSocketMessage(START, payload, id)
 }
 
 function Complete(id: string) {
