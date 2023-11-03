@@ -1,6 +1,6 @@
 {
-  "name": "graphql-request",
-  "version": "0.0.0-dripip",
+  "name": "@chromatic-protocol/graphql-request",
+  "version": "0.0.1",
   "type": "module",
   "exports": {
     ".": {
@@ -10,45 +10,31 @@
       }
     }
   },
-  "packageManager": "pnpm@8.10.2",
   "files": [
     "build",
     "src"
   ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/jasonkuhrt/graphql-request.git"
-  },
   "keywords": [
     "graphql",
     "request",
     "fetch",
     "graphql-client"
   ],
-  "author": {
-    "name": "Jason Kuhrt",
-    "email": "jasonkuhrt@me.com",
-    "url": "https://kuhrt.me"
-  },
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/jasonkuhrt/graphql-request/issues"
-  },
-  "homepage": "https://github.com/jasonkuhrt/graphql-request",
   "scripts": {
     "dev": "rm -rf dist && tsc --watch",
-    "format": "pnpm build:docs && prettier --write .",
+    "format": "yarn build:docs && prettier --write .",
     "lint": "eslint . --ext .ts,.tsx --fix",
-    "check": "pnpm check:types && pnpm check:format && pnpm check:lint",
-    "check:types": "pnpm tsc --noEmit",
-    "check:format": "prettier --check . && pnpm build:docs && git diff --exit-code README.md",
+    "check": "yarn check:types && yarn check:format && yarn check:lint",
+    "check:types": "yarn tsc --noEmit",
+    "check:format": "prettier --check . && yarn build:docs && git diff --exit-code README.md",
     "check:lint": "eslint . --ext .ts,.tsx --max-warnings 0",
-    "prepublishOnly": "pnpm build",
+    "prepublishOnly": "yarn build",
     "build:docs": "doctoc README.md --notitle && prettier --write README.md",
-    "build": "pnpm clean && pnpm tsc --project tsconfig.build.json",
+    "build": "yarn clean && yarn tsc --project tsconfig.build.json",
     "clean": "tsc --build --clean && rm -rf build",
     "test": "vitest",
-    "test:coverage": "pnpm test -- --coverage",
+    "test:coverage": "yarn test -- --coverage",
     "release:stable": "dripip stable",
     "release:preview": "dripip preview",
     "release:pr": "dripip pr"
