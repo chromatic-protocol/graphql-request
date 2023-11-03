@@ -1,15 +1,21 @@
 {
   "name": "@chromatic-protocol/graphql-request",
-  "version": "0.0.1-rc.1",
+  "version": "0.0.1-rc.3",
   "type": "module",
+  "main": "./build/cjs/index.js",
   "exports": {
     ".": {
+      "require": {
+        "types": "./build/cjs/index.d.ts",
+        "default": "./build/cjs/index.js"
+      },
       "import": {
-        "types": "./build/index.d.ts",
-        "default": "./build/index.js"
+        "types": "./build/esm/index.d.ts",
+        "default": "./build/esm/index.js"
       }
     }
   },
+  "types": "./build/esm/index.d.ts",
   "files": [
     "build",
     "src"
@@ -31,7 +37,9 @@
     "check:lint": "eslint . --ext .ts,.tsx --max-warnings 0",
     "prepublishOnly": "yarn build",
     "build:docs": "doctoc README.md --notitle && prettier --write README.md",
-    "build": "yarn clean && yarn tsc --project tsconfig.build.json",
+    "build": "yarn clean && yarn build:cjs && yarn build:esm",
+    "build:cjs": "yarn tsc --project tsconfig.cjs.json && echo '{\"type\":\"commonjs\"}' > build/cjs/package.json",
+    "build:esm": "yarn tsc --project tsconfig.esm.json",
     "clean": "tsc --build --clean && rm -rf build",
     "test": "vitest",
     "test:coverage": "yarn test -- --coverage",
