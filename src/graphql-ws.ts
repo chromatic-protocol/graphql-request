@@ -10,7 +10,7 @@ const CONNECTION_ACK = `connection_ack`
 const PING = `ping`
 const PONG = `pong`
 const START = `start`
-const DATA = `data`;
+const DATA = `data`
 const ERROR = `error`
 const COMPLETE = `complete`
 
@@ -88,107 +88,133 @@ type SocketState = {
 export class GraphQLWebSocketClient {
   static PROTOCOL = `graphql-ws`
 
+  private url: string
   private socket: WebSocket
   private socketState: SocketState = { acknowledged: false, lastRequestId: 0, subscriptions: {} }
+  private socketHandler: SocketHandler
 
-  constructor(socket: WebSocket, { onInit, onAcknowledged, onPing, onPong }: SocketHandler) {
-    this.socket = socket
+  constructor(url: string, socketHandler: SocketHandler) {
+    this.url = url
+    this.socketHandler = socketHandler
+    this.socket = new WebSocket(url, 'graphql-ws')
+    this.initialize()
+  }
 
-    socket.addEventListener(`open`, async (e) => {
-      this.socketState.acknowledged = false
-      this.socketState.subscriptions = {}
-      socket.send(ConnectionInit(onInit ? await onInit() : null).text)
-    })
+  private isOpen() {
+    return this.socket.readyState === WebSocket.OPEN
+  }
 
-    socket.addEventListener(`close`, (e) => {
-      this.socketState.acknowledged = false
-      this.socketState.subscriptions = {}
-    })
+  private async initialize(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const { onInit, onAcknowledged, onPing, onPong } = this.socketHandler
+      this.socket.addEventListener(`open`, async (e) => {
+        this.socketState.acknowledged = false
+        this.socketState.subscriptions = {}
+        this.socket.send(ConnectionInit(onInit ? await onInit() : null).text)
+      })
 
-    socket.addEventListener(`error`, (e) => {
-      console.error(e)
-    })
+      this.socket.addEventListener(`close`, (e) => {
+        this.socketState.acknowledged = false
+        this.socketState.subscriptions = {}
+      })
 
-    socket.addEventListener(`message`, (e) => {
-      try {
-        const message = parseMessage(e.data)
-        switch (message.type) {
-          case CONNECTION_ACK: {
-            if (this.socketState.acknowledged) {
-              console.warn(`Duplicate CONNECTION_ACK message ignored`)
-            } else {
-              this.socketState.acknowledged = true
-              if (onAcknowledged) onAcknowledged(message.payload)
-            }
-            return
-          }
-          case PING: {
-            if (onPing) onPing(message.payload).then((r) => socket.send(Pong(r).text))
-            else socket.send(Pong(null).text)
-            return
-          }
-          case PONG: {
-            if (onPong) onPong(message.payload)
-            return
-          }
-        }
-
-        if (!this.socketState.acknowledged) {
-          // Web-socket connection not acknowledged
-          return
-        }
-
-        if (message.id === undefined || message.id === null || !this.socketState.subscriptions[message.id]) {
-          // No subscription identifer or subscription indentifier is not found
-          return
-        }
-        const { query, variables, subscriber } = this.socketState.subscriptions[message.id]!
-
-        switch (message.type) {
-          case DATA: {
-            if (!message.payload.errors && message.payload.data) {
-              subscriber.next && subscriber.next(message.payload.data)
-            }
-            if (message.payload.errors) {
-              subscriber.error &&
-                subscriber.error(new ClientError({ ...message.payload, status: 200 }, { query, variables }))
-            } else {
-            }
-            return
-          }
-
-          case ERROR: {
-            subscriber.error &&
-              subscriber.error(
-                new ClientError({ errors: message.payload, status: 200 }, { query, variables }),
-              )
-            return
-          }
-
-          case COMPLETE: {
-            subscriber.complete && subscriber.complete()
-            delete this.socketState.subscriptions[message.id]
-            return
-          }
-        }
-      } catch (e) {
-        // Unexpected errors while handling graphql-ws message
+      this.socket.addEventListener(`error`, (e) => {
         console.error(e)
-        socket.close(1006)
-      }
-      socket.close(4400, `Unknown graphql-ws message.`)
+      })
+
+      this.socket.addEventListener(`message`, (e) => {
+        try {
+          const message = parseMessage(e.data)
+          switch (message.type) {
+            case CONNECTION_ACK: {
+              if (this.socketState.acknowledged) {
+                console.warn(`Duplicate CONNECTION_ACK message ignored`)
+              } else {
+                this.socketState.acknowledged = true
+                if (onAcknowledged) onAcknowledged(message.payload)
+              }
+              resolve()
+              return
+            }
+            case PING: {
+              if (onPing) onPing(message.payload).then((r) => this.socket.send(Pong(r).text))
+              else this.socket.send(Pong(null).text)
+              return
+            }
+            case PONG: {
+              if (onPong) onPong(message.payload)
+              return
+            }
+          }
+
+          if (!this.socketState.acknowledged) {
+            // Web-socket connection not acknowledged
+            return
+          }
+
+          if (
+            message.id === undefined ||
+            message.id === null ||
+            !this.socketState.subscriptions[message.id]
+          ) {
+            // No subscription identifer or subscription indentifier is not found
+            return
+          }
+          const { query, variables, subscriber } = this.socketState.subscriptions[message.id]!
+
+          switch (message.type) {
+            case DATA: {
+              if (!message.payload.errors && message.payload.data) {
+                subscriber.next && subscriber.next(message.payload.data)
+              }
+              if (message.payload.errors) {
+                subscriber.error &&
+                  subscriber.error(new ClientError({ ...message.payload, status: 200 }, { query, variables }))
+              } else {
+              }
+              return
+            }
+
+            case ERROR: {
+              subscriber.error &&
+                subscriber.error(
+                  new ClientError({ errors: message.payload, status: 200 }, { query, variables }),
+                )
+              return
+            }
+
+            case COMPLETE: {
+              subscriber.complete && subscriber.complete()
+              delete this.socketState.subscriptions[message.id]
+              return
+            }
+          }
+        } catch (e) {
+          // Unexpected errors while handling graphql-ws message
+          console.error(e)
+          this.socket.close(1006)
+        }
+        this.socket.close(4400, `Unknown graphql-ws message.`)
+      })
     })
   }
 
+  private generateSubscriptionId() {
+    return (this.socketState.lastRequestId++).toString()
+  }
+
   private makeSubscribe<T, V extends Variables, E>(
+    subscriptionId: string,
     query: string,
     operationName: string | undefined,
     subscriber: GraphQLSubscriber<T, E>,
     variables?: V,
-  ): UnsubscribeCallback {
-    const subscriptionId = (this.socketState.lastRequestId++).toString()
+  ) {
     this.socketState.subscriptions[subscriptionId] = { query, variables, subscriber }
     this.socket.send(Subscribe(subscriptionId, { query, operationName, variables }).text)
+  }
+
+  private getUnsubsctiber(subscriptionId: string): UnsubscribeCallback {
     return () => {
       this.socket.send(Complete(subscriptionId).text)
       delete this.socketState.subscriptions[subscriptionId]
@@ -237,7 +263,18 @@ export class GraphQLWebSocketClient {
     variables?: V,
   ): UnsubscribeCallback {
     const { query, operationName } = resolveRequestDocument(document)
-    return this.makeSubscribe(query, operationName, subscriber, variables)
+
+    const subscriberId = this.generateSubscriptionId()
+    if (!this.isOpen()) {
+      this.socket = new WebSocket(this.url, 'graphql-ws')
+      this.initialize().then(() => {
+        this.makeSubscribe(subscriberId, query, operationName, subscriber, variables)
+      })
+    } else {
+      this.makeSubscribe(subscriberId, query, operationName, subscriber, variables)
+    }
+
+    return this.getUnsubsctiber(subscriberId)
   }
 
   rawSubscribe<T = any, V extends Variables = Variables, E = any>(
@@ -245,7 +282,15 @@ export class GraphQLWebSocketClient {
     subscriber: GraphQLSubscriber<T, E>,
     variables?: V,
   ): UnsubscribeCallback {
-    return this.makeSubscribe(query, undefined, subscriber, variables)
+    const subscriberId = this.generateSubscriptionId()
+    if (!this.isOpen()) {
+      this.socket = new WebSocket(this.url, 'graphql-ws')
+      this.initialize().then(() => this.makeSubscribe(subscriberId, query, undefined, subscriber, variables))
+    } else {
+      this.makeSubscribe(subscriberId, query, undefined, subscriber, variables)
+    }
+
+    return this.getUnsubsctiber(subscriberId)
   }
 
   ping(payload: Variables) {
