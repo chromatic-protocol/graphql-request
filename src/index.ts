@@ -665,7 +665,7 @@ export const gql = (chunks: TemplateStringsArray, ...variables: unknown[]): stri
   )
 }
 
-export { GraphQLWebSocketClient } from './graphql-ws.js'
+export { GraphQLWebSocketClient, GraphQLSubscriber, UnsubscribeCallback } from './graphql-ws.js'
 export { resolveRequestDocument } from './resolveRequestDocument.js'
 export {
   BatchRequestDocument,
