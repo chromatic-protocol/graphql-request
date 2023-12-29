@@ -1,6 +1,6 @@
 {
   "name": "@chromatic-protocol/graphql-request",
-  "version": "0.0.1-rc.4",
+  "version": "0.0.1-rc.5",
   "type": "module",
   "main": "./build/cjs/index.js",
   "exports": {

@@ -215,6 +215,12 @@ export class GraphQLWebSocketClient {
   }
 
   private getUnsubsctiber(subscriptionId: string): UnsubscribeCallback {
+    const subscriptionCount = Object.keys(this.socketState.subscriptions).length
+    if (subscriptionCount > 1) {
+      return () => {
+        delete this.socketState.subscriptions[subscriptionId]
+      }
+    }
     return () => {
       this.socket.send(Complete(subscriptionId).text)
       delete this.socketState.subscriptions[subscriptionId]
