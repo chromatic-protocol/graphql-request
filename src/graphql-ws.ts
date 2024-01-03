@@ -12,7 +12,7 @@ const PONG = `pong`
 const START = `start`
 const DATA = `data`
 const ERROR = `error`
-const COMPLETE = `complete`
+const STOP = `stop`
 
 type MessagePayload = { [key: string]: any }
 
@@ -110,7 +110,11 @@ export class GraphQLWebSocketClient {
       this.socket.addEventListener(`open`, async (e) => {
         this.socketState.acknowledged = false
         this.socketState.subscriptions = {}
-        this.socket.send(ConnectionInit(onInit ? await onInit() : null).text)
+        try {
+          this.socket.send(ConnectionInit(onInit ? await onInit() : null).text)
+        } catch (e) {
+          console.warn(e)
+        }
       })
 
       this.socket.addEventListener(`close`, (e) => {
@@ -183,7 +187,7 @@ export class GraphQLWebSocketClient {
               return
             }
 
-            case COMPLETE: {
+            case STOP: {
               subscriber.complete && subscriber.complete()
               delete this.socketState.subscriptions[message.id]
               return
@@ -215,14 +219,8 @@ export class GraphQLWebSocketClient {
   }
 
   private getUnsubsctiber(subscriptionId: string): UnsubscribeCallback {
-    const subscriptionCount = Object.keys(this.socketState.subscriptions).length
-    if (subscriptionCount > 1) {
-      return () => {
-        delete this.socketState.subscriptions[subscriptionId]
-      }
-    }
     return () => {
-      this.socket.send(Complete(subscriptionId).text)
+      this.socket.send(Stop(subscriptionId).text)
       delete this.socketState.subscriptions[subscriptionId]
     }
   }
@@ -330,6 +328,6 @@ function Subscribe(id: string, payload: SubscribePayload) {
   return new GraphQLWebSocketMessage(START, payload, id)
 }
 
-function Complete(id: string) {
-  return new GraphQLWebSocketMessage(COMPLETE, undefined, id)
+function Stop(id: string) {
+  return new GraphQLWebSocketMessage(STOP, undefined, id)
 }
