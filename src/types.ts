@@ -165,3 +165,5 @@ export type VariablesAndRequestHeadersArgs<V extends Variables> =
   : keyof RemoveIndex<V> extends never // do we get an empty variables object?
     ? [variables?: V, requestHeaders?: GraphQLClientRequestHeaders]
     : [variables: V, requestHeaders?: GraphQLClientRequestHeaders]
+
+export type UnknownFunction = (...args: any[]) => unknown

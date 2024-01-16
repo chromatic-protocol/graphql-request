@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { exponentialBackoff } from './helpers.js'
 import { resolveRequestDocument } from './resolveRequestDocument.js'
 import type { RequestDocument, Variables } from './types.js'
 import { ClientError } from './types.js'
@@ -110,11 +111,16 @@ export class GraphQLWebSocketClient {
       this.socket.addEventListener(`open`, async (e) => {
         this.socketState.acknowledged = false
         this.socketState.subscriptions = {}
-        try {
-          this.socket.send(ConnectionInit(onInit ? await onInit() : null).text)
-        } catch (e) {
-          console.warn(e)
-        }
+        exponentialBackoff({
+          func: async () => {
+            this.socket.send(ConnectionInit(onInit ? await onInit() : null).text)
+          },
+          fallback: (e) => {
+            console.warn(e)
+          },
+          maxRetry: 5,
+          timeout: 1000,
+        })
       })
 
       this.socket.addEventListener(`close`, (e) => {
@@ -215,12 +221,27 @@ export class GraphQLWebSocketClient {
     variables?: V,
   ) {
     this.socketState.subscriptions[subscriptionId] = { query, variables, subscriber }
-    this.socket.send(Subscribe(subscriptionId, { query, operationName, variables }).text)
+
+    exponentialBackoff({
+      func: () => {
+        this.socket.send(Subscribe(subscriptionId, { query, operationName, variables }).text)
+      },
+      fallback: (e) => {
+        console.log('Failed to connect websocket connection', e)
+        delete this.socketState.subscriptions[subscriptionId]
+      },
+      maxRetry: 5,
+      timeout: 1000,
+    })
   }
 
   private getUnsubsctiber(subscriptionId: string): UnsubscribeCallback {
     return () => {
-      this.socket.send(Stop(subscriptionId).text)
+      try {
+        this.socket.send(Stop(subscriptionId).text)
+      } catch (e) {
+        console.log('Failed to stop websocket connection')
+      }
       delete this.socketState.subscriptions[subscriptionId]
     }
   }
